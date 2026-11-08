@@ -22,3 +22,6 @@ cleaned_*.csv
 
 # Source data
 resources/
+
+# Validation report
+validation_report.csv

@@ -64,3 +64,34 @@ class CleaningData:
         """Drop columns."""
         self.data = self.data.drop(columns=columns)
         return self.data
+
+    def convert_to_boolean_values(self, columns):
+        """Convert columns to boolean values, 1 for true else 0."""
+        self.data[columns] = self.data[columns].astype(bool).astype(int)
+        return self.data
+
+    def trim(self, columns=None):
+      """Remove leading and trailing spaces from text values.
+
+      With no columns, every text column is trimmed. Numbers and missing
+      values are left as they are.
+      """
+      if columns is None:
+        columns = self.data.select_dtypes(include=["object", "string"]).columns
+      else:
+        missing = [column for column in columns if column not in self.data.columns]
+        if missing:
+            raise KeyError(f"columns not found: {missing}")
+
+      for column in columns:
+        values = self.data[column]
+        text = values.map(lambda value: isinstance(value, str))
+        self.data.loc[text, column] = values.loc[text].str.strip()
+      return self.data    
+
+
+    def validate_email_addresses(self, columns):
+      """Validate email addresses."""
+      self.data[columns] = self.data[columns].apply(lambda x: x.str.match(r"[^@]+@[^@]+\.[^@]+"))
+      return self.data
+
