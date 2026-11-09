@@ -1,4 +1,5 @@
 import pandas as pd
+import re
 
 class DataValidator:
     def __init__(self, data: pd.DataFrame):
@@ -21,9 +22,10 @@ class DataValidator:
 
     def run(self):
         self.findings = []
-        self.check_missing()
+        self.check_missing_percent_values()
         self.check_duplicates()
         self.check_whitespace()
+        self.check_invalid_email_addresses()
         return self
 
     def report(self):
@@ -33,7 +35,7 @@ class DataValidator:
             ["severity", "count"], ascending=[True, False]
         )
 
-    def check_missing(self, warn_at=5, error_at=50):
+    def check_missing_percent_values(self, warn_at=5, error_at=50):
       null_percent = self.data.isna().mean() * 100
       for column, percent in null_percent.items():
         if percent == 0:
@@ -42,8 +44,7 @@ class DataValidator:
         self._add(
             column, "missing", severity,
             self.data[column].isna(),
-            #f"{percent:.1f}% of values are missing.",
-            f"{percent}% of values are missing.",
+            f"{percent:.2f}% of values are missing.",
         )        
 
     def check_duplicates(self):
@@ -63,8 +64,22 @@ class DataValidator:
                       "Text has leading or trailing spaces.")
         return self
 
+    def check_invalid_email_addresses(self):
+        email_columns = self.data.filter(like="email").columns
+        for column in email_columns:
+            values = self.data[column]
+            # Missing cells are reported by the missing-value check.
+            # Flag only text that is present and does not match an email.
+            is_invalid = values.map(
+                lambda value: isinstance(value, str)
+                and re.fullmatch(r"[^@]+@[^@]+\.[^@]+", value.strip()) is None
+            )
+            self._add(column, "invalid_email", "warning", is_invalid,
+                      "Email addresses are invalid.")
+        return self
+
 #Testing the validator class
-data = pd.read_csv("resources/Airbnb_Open_Data.csv")
+data = pd.read_csv("resources/orders_qa_exercise.csv")
 validator = DataValidator(data)
 validator.run()
 summary = validator.run().report()
