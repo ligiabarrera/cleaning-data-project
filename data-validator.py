@@ -26,6 +26,10 @@ class DataValidator:
         self.check_duplicates()
         self.check_whitespace()
         self.check_invalid_email_addresses()
+        self.check_valid_price_values()
+        self.check_valid_quantity_values()
+        self.check_valid_age_values()
+        self.check_valid_age_ranges()
         return self
 
     def report(self):
@@ -76,6 +80,101 @@ class DataValidator:
             )
             self._add(column, "invalid_email", "warning", is_invalid,
                       "Email addresses are invalid.")
+        return self
+
+    def check_valid_phone_numbers(self):
+        phone_columns = self.data.filter(like="phone").columns
+        for column in phone_columns:
+            values = self.data[column]
+            is_valid = values.map(lambda value: isinstance(value, str) and re.fullmatch(r"^\d{10}$", value.strip()) is not None)
+            self._add(column, "valid_phone", "warning", is_valid,
+                      "Phone numbers are invalid.")
+        return self
+
+    def check_valid_age_values(self):
+        age_columns = self.data.filter(like="age").columns
+        for column in age_columns:
+            values = self.data[column]
+            in_invalid_values = values.map(lambda value: isinstance(value, str) and re.fullmatch(r"^\d{1,3}$", value.strip()) is not None)
+            self._add(column, "valid_age", "warning", in_invalid_values,
+                      "Ages are invalid.")
+        return self
+
+    def check_valid_age_ranges(self):
+        age_columns = self.data.filter(like="age").columns
+        for column in age_columns:
+            values = self.data[column]
+            #check if value is between 0 and 100
+            in_invalid_ranges = values.map(self._is_invalid_age_range)
+            self._add(column, "invalid_age_range", "warning", in_invalid_ranges,
+                      "Ages are invalid.")
+        return self
+
+    def check_valid_price_values(self):
+        price_columns = self.data.filter(
+            regex=r"price|cost|total|amount|fee"
+        ).columns
+        for column in price_columns:
+            values = self.data[column]
+            # Valid: a number that is 0 or greater, or text made only of
+            # digits with one optional decimal point ("800.00").
+            # A minus sign, comma, currency symbol, letter, or space is invalid.
+            # Blank cells stay on the missing-value check.
+            is_invalid = values.map(self._is_invalid_amount)
+            self._add(column, "invalid_amount", "warning", is_invalid,
+                      "Value is not a non-negative number.")
+        return self
+
+    @staticmethod
+    def _is_invalid_amount(value):
+        if pd.isna(value):
+            return False
+        if isinstance(value, str):
+            return re.fullmatch(r"\d+(\.\d+)?", value) is None
+        if isinstance(value, bool) or not pd.api.types.is_number(value):
+            return True
+        return float(value) < 0
+
+    @staticmethod
+    def _is_invalid_quantity(value):
+        if pd.isna(value):
+            return False
+        if isinstance(value, str):
+            if re.fullmatch(r"\d+", value) is None:
+                return True
+            number = int(value)
+        elif isinstance(value, bool) or not pd.api.types.is_number(value):
+            return True
+        elif float(value) != int(value):
+            return True
+        else:
+            number = int(value)
+        return number < 0 or number > 100
+
+    @staticmethod
+    def _is_invalid_age_range(value):
+        if pd.isna(value):
+            return False
+        if isinstance(value, str):
+            text = value.strip()
+            if re.fullmatch(r"^\d{1,3}$", text) is not None:
+                return False
+            number = int(text)    
+        elif isinstance(value, bool) or not pd.api.types.is_number(value):
+            return False
+        else:
+            number = int(value)
+        return number < 0 or number > 100
+
+    def check_valid_quantity_values(self):
+        quantity_columns = self.data.filter(like="quantity").columns
+        for column in quantity_columns:
+            values = self.data[column]
+            # -1 is stored as a number, so a string-only check never sees it.
+            # Valid values are whole numbers from 0 through 100.
+            is_invalid = values.map(self._is_invalid_quantity)
+            self._add(column, "invalid_quantity", "warning", is_invalid,
+                      "Quantities are negative.")
         return self
 
 #Testing the validator class
